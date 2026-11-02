@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="description" content="Memory Pairs — flip cards and match pairs. Three board sizes, combo scoring, best records. Free single-file HTML5 memory game.">
+<title>Memory Pairs · Card Matching</title>
+<script>
+// 平台 SDK 按域名条件加载（独立运行时完全不加载，游戏行为不变）
+(function () {
+  var host = location.hostname || "";
+  try {
+    if (host.indexOf("crazygames") !== -1) {
+      var s1 = document.createElement("script");
+      s1.src = "https://sdk.crazygames.com/crazygames-sdk-v3.js";
+      s1.onload = function () {
+        if (window.CrazyGames && window.CrazyGames.SDK) {
+          window.CrazyGames.SDK.init().then(function () {
+            try { window.CrazyGames.SDK.game.loadingStart(); } catch (e) {}
+            window.addEventListener("load", function () { try { window.CrazyGames.SDK.game.loadingStop(); } catch (e) {} });
+          }).catch(function () {});
+        }
+      };
+      document.head.appendChild(s1);
+      window.__portal = "crazygames";
+    } else if (host.indexOf("gamedistribution") !== -1 || host.indexOf("html5.gamedistribution.com") !== -1 || host.indexOf("gd.games") !== -1) {
+      var s2 = document.createElement("script");
+      s2.src = "https://sdk.gamedistribution.com/v2/main.min.js";
+      document.head.appendChild(s2);
+      window.__portal = "gamedistribution";
+    }
+  } catch (e) {}
+})();
+</script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; overflow:hidden; background:#0b0e1d; font-family:-apple-system,"Segoe UI","Helvetica Neue",Arial,sans-serif; }
+  #wrap { height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  #hud { width:100%; max-width:640px; display:flex; justify-content:space-between; align-items:flex-end; padding:8px 14px 4px; }
+  .stat { text-align:center; min-width:58px; }
+  .stat .label { font-size:10px; color:#7d87b0; letter-spacing:1.5px; font-weight:700; }
+  .stat .val { font-size:19px; font-weight:800; color:#f2f4ff; }
+  #toolbar { width:100%; max-width:640px; display:flex; justify-content:space-between; padding:0 14px 8px; }
+  .ghost { background:#171c3c; color:#9aa4cf; border:1px solid #2b3360; border-radius:8px; padding:5px 12px; font-size:11px; font-weight:800; letter-spacing:1px; cursor:pointer; font-family:inherit; }
+  .ghost:active { transform:scale(.96); }
+  canvas { display:block; border-radius:14px; touch-action:none; box-shadow:0 10px 34px rgba(0,0,0,.5); }
+  #stage { position:relative; }
+  #overlay { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(6,8,20,.78); backdrop-filter:blur(3px); z-index:5; border-radius:14px; overflow:auto; }
+  #panel { background:#151a38; border:1px solid #2b3360; border-radius:18px; padding:22px 24px 20px; text-align:center; color:#fff; width:min(86%,320px); max-height:94%; overflow:auto; }
+  #panel h1 { font-size:23px; letter-spacing:3px; color:#7ce7d8; margin-bottom:8px; }
+  #panel h2 { font-size:22px; letter-spacing:1px; color:#ffd76a; margin-bottom:4px; }
+  #panel .sub { color:#9aa4cf; font-size:12px; line-height:1.55; margin-bottom:14px; }
+  .diff { display:block; width:100%; border:none; border-radius:12px; padding:10px 12px; margin:8px 0; color:#fff; font-weight:800; font-size:15px; letter-spacing:1.5px; cursor:pointer; font-family:inherit; }
+  .diff span { display:block; font-size:11px; font-weight:600; opacity:.85; letter-spacing:.5px; margin-top:2px; }
+  .diff em { display:block; font-style:normal; font-size:10px; font-weight:700; opacity:.75; margin-top:3px; letter-spacing:.5px; }
+  .diff:active { transform:scale(.97); }
+  .d1 { background:linear-gradient(135deg,#2fae7d,#1d8a63); }
+  .d2 { background:linear-gradient(135deg,#e0a23a,#c07f1d); }
+  .d3 { background:linear-gradient(135deg,#e05a8a,#b53a6c); }
+  #panel .final { font-size:38px; font-weight:900; color:#ffd76a; margin:4px 0 10px; }
+  .wrow { display:flex; justify-content:center; gap:8px; margin-bottom:12px; }
+  .wstat { background:#10142c; border:1px solid #2b3360; border-radius:10px; padding:7px 10px; min-width:74px; }
+  .wstat span { display:block; font-size:9px; color:#7d87b0; letter-spacing:1.5px; font-weight:700; }
+  .wstat b { font-size:17px; color:#fff; }
+  .chips { margin-bottom:10px; }
+  .chip { display:inline-block; background:rgba(124,231,216,.12); border:1px solid rgba(124,231,216,.45); color:#7ce7d8; border-radius:20px; padding:3px 10px; font-size:10px; font-weight:800; letter-spacing:1px; margin:2px; }
+  .chip.gold { background:rgba(255,215,106,.1); border-color:rgba(255,215,106,.5); color:#ffd76a; }
+  .big { display:block; width:100%; background:linear-gradient(135deg,#19c6a0,#4a7dff); color:#fff; border:none; border-radius:12px; padding:12px; font-size:15px; font-weight:800; letter-spacing:1.5px; cursor:pointer; font-family:inherit; margin-bottom:8px; }
+  .big:active { transform:scale(.97); }
+  #panel .hint { color:#5f6a99; font-size:11px; margin-top:10px; }
+  #footer { color:#4d5578; font-size:11px; padding:6px; letter-spacing:.5px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <div class="stat"><div class="label">TIME</div><div class="val" id="tTime">0:00</div></div>
+    <div class="stat"><div class="label">MOVES</div><div class="val" id="tMoves">0</div></div>
+    <div class="stat"><div class="label">PAIRS</div><div class="val" id="tPairs">0/0</div></div>
+    <div class="stat"><div class="label">SCORE</div><div class="val" id="tScore">0</div></div>
+  </div>
+  <div id="toolbar">
+    <button class="ghost" id="menuBtn">MENU</button>
+    <button class="ghost" id="muteBtn">SOUND ON</button>
+  </div>
+  <div id="stage">
+    <canvas id="game" width="320" height="320"></canvas>
+    <div id="overlay"><div id="panel">
+      <div id="menuView">
+        <h1>MEMORY PAIRS</h1>
+        <p class="sub">Flip two cards at a time and find every matching pair.<br>Fewer moves = higher score.</p>
+        <button class="diff d1" data-diff="easy">EASY<span>4&times;4 board &middot; 8 pairs</span><em id="best_easy"></em></button>
+        <button class="diff d2" data-diff="normal">NORMAL<span>6&times;6 board &middot; 18 pairs</span><em id="best_normal"></em></button>
+        <button class="diff d3" data-diff="hard">HARD<span>8&times;6 board &middot; 24 pairs</span><em id="best_hard"></em></button>
+        <p class="hint">Tip: chain matches in a row for combo bonus.</p>
+      </div>
+      <div id="winView" style="display:none">
+        <h2>Board Cleared!</h2>
+        <div class="final" id="wScore">0</div>
+        <div class="chips" id="wChips"></div>
+        <div class="wrow">
+          <div class="wstat"><span>MOVES</span><b id="wMoves">0</b></div>
+          <div class="wstat"><span>TIME</span><b id="wTime">0:00</b></div>
+          <div class="wstat"><span>PAR</span><b id="wPar">0</b></div>
+        </div>
+        <button id="againBtn" class="big">PLAY AGAIN</button>
+        <button id="toMenuBtn" class="ghost">CHANGE MODE</button>
+      </div>
+    </div></div>
+  </div>
+  <div id="footer">Memory Pairs — a free card matching game</div>
+</div>
+<script>
+"use strict";
+/*__MP_CORE__*/
+// ===== 纯逻辑核心（无 DOM 依赖，可被 node 测试提取执行） =====
+var MP_ICONS = ["cat","apple","star","moon","rainbow","heart","bolt","flower","mushroom","fish","butterfly","tree","house","car","ball","cloud","key","clock","cup","book","note","gem","sun","snowman"];
+var MP_DIFFS = {
+  easy:   { cols: 4, rows: 4, pairs: 8,  label: "Easy" },
+  normal: { cols: 6, rows: 6, pairs: 18, label: "Normal" },
+  hard:   { cols: 8, rows: 6, pairs: 24, label: "Hard" }
+};
+function MP_shuffle(a) {  // Fisher-Yates，返回新数组
+  var r = a.slice();
+  for (var i = r.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = r[i]; r[i] = r[j]; r[j] = t;
+  }
+  return r;
+}
+function MP_buildDeck(pairs) {  // 随机选 pairs 种图案，每种恰好 2 张，整体洗牌
+  var types = MP_shuffle(MP_ICONS).slice(0, pairs);
+  var deck = [];
+  for (var i = 0; i < types.length; i++) { deck.push(types[i]); deck.push(types[i]); }
+  return MP_shuffle(deck);
+}
+function MP_par(pairs) { return Math.round(pairs * 1.6); }
+function MP_matchGain(moveNo) {  // 第 moveNo 步配对的基础分：步数越多惩罚越大
+  return Math.max(25, 100 - (moveNo - 1) * 5);
+}
+function MP_finalScore(raw, moves, pairs) {  // 低于 par（步数更少）有 ×1.5 奖励
+  return moves < MP_par(pairs) ? Math.round(raw * 1.5) : raw;
+}
+function MP_fmtTime(sec) {
+  sec = Math.max(0, Math.floor(sec));
+  var m = Math.floor(sec / 60), s = sec % 60;
+  return m + ":" + (s < 10 ? "0" : "") + s;
+}
+function MP_newState(pairs) {
+  var deck = MP_buildDeck(pairs);
+  return {
+    pairs: pairs,
+    deck: deck,
+    faceup: deck.map(function () { return false; }),   // 翻开待判定
+    matched: deck.map(function () { return false; }),  // 已配对
+    up: [],          // 当前翻开的卡索引（判定期间由 lock 保护）
+    lock: false,     // 第二张翻开后、结算完成前锁输入
+    pending: null,   // {type:"match"|"miss", cards:[a,b], gain?, comboBonus?}
+    pairsFound: 0,
+    moves: 0,
+    combo: 0,
+    raw: 0,          // 未乘 par 奖励的累计分
+    started: false,  // 首次翻牌后 true（计时起点）
+    won: false
+  };
+}
+// 状态机：翻牌。返回 {ok:true,event:...} 或 {ok:false,reason:...}
+function MP_flip(st, i) {
+  if (st.won) return { ok: false, reason: "won" };
+  if (st.lock) return { ok: false, reason: "locked" };
+  if (typeof i !== "number" || i < 0 || i >= st.deck.length || i % 1 !== 0) return { ok: false, reason: "range" };
+  if (st.matched[i]) return { ok: false, reason: "matched" };
+  if (st.faceup[i]) return { ok: false, reason: "same" };   // 连点同一张
+  if (st.up.length >= 2) return { ok: false, reason: "locked" };
+  st.faceup[i] = true;
+  st.up.push(i);
+  st.started = true;
+  if (st.up.length === 1) return { ok: true, event: "flip", card: i };
+  // 第二张：立即判定并锁定
+  st.moves++;
+  st.lock = true;
+  var a = st.up[0], b = st.up[1];
+  if (st.deck[a] === st.deck[b]) {
+    st.matched[a] = true; st.matched[b] = true;
+    st.pairsFound++;
+    st.combo++;
+    var gain = MP_matchGain(st.moves);
+    var comboBonus = (st.combo - 1) * 20;
+    st.raw += gain + comboBonus;
+    st.up = [];
+    st.pending = { type: "match", cards: [a, b], gain: gain, comboBonus: comboBonus };
+    var wonNow = st.pairsFound === st.pairs;
+    if (wonNow) st.won = true;
+    return { ok: true, event: "match", cards: [a, b], gain: gain, comboBonus: comboBonus, combo: st.combo, won: wonNow };
+  }
+  st.pending = { type: "miss", cards: [a, b] };
+  return { ok: true, event: "miss", cards: [a, b] };
+}
+// 结算完成（盖回/庆祝演出结束后调用）：miss → 盖回并解锁；match → 解锁
+function MP_resolve(st) {
+  if (!st.pending) return null;
+  var p = st.pending;
+  st.pending = null;
+  st.lock = false;
+  if (p.type === "miss") {
+    st.combo = 0;
+    st.faceup[p.cards[0]] = false;
+    st.faceup[p.cards[1]] = false;
+    st.up = [];  // 清空翻开队列，否则 miss 结算后第三张永远被拒
+  }
+  return p.type;
+}
+/*__MP_CORE_END__*/
+
+/*__MP_ICONS__*/
+// ===== 24 种程序化卡面图标（纯几何绘制，在尺寸 s 的方框内居中） =====
+var CARD_BG = "#fdf6e9", INK = "#4a3f63";
+function cc(c, x, y, r) { c.beginPath(); c.arc(x, y, r, 0, 6.2832); c.closePath(); }
+function ell(c, x, y, rx, ry, rot) { c.beginPath(); c.ellipse(x, y, rx, ry, rot || 0, 0, 6.2832); c.closePath(); }
+function poly(c, pts) { c.beginPath(); c.moveTo(pts[0], pts[1]); for (var i = 2; i < pts.length; i += 2) c.lineTo(pts[i], pts[i + 1]); c.closePath(); }
+function rrect(c, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
+}
+var MP_DRAW = {
+cat: function (c, s) {
+  var r = s * .30;
+  c.lineWidth = s * .04; c.strokeStyle = INK; c.fillStyle = "#ffb26b";
+  poly(c, [-r * .9, -r * .35, -r * 1.05, -r * 1.3, -r * .12, -r * .82]); c.fill(); c.stroke();
+  poly(c, [r * .9, -r * .35, r * 1.05, -r * 1.3, r * .12, -r * .82]); c.fill(); c.stroke();
+  cc(c, 0, 0, r); c.fill(); c.stroke();
+  c.fillStyle = "#ff8fa8";
+  poly(c, [-r * .6, -r * .5, -r * .68, -r * .98, -r * .26, -r * .74]); c.fill();
+  poly(c, [r * .6, -r * .5, r * .68, -r * .98, r * .26, -r * .74]); c.fill();
+  c.fillStyle = INK; cc(c, -r * .38, -r * .05, r * .11); c.fill(); cc(c, r * .38, -r * .05, r * .11); c.fill();
+  c.fillStyle = "#ff6b81"; poly(c, [-r * .15, r * .26, r * .15, r * .26, 0, r * .48]); c.fill();
+  c.strokeStyle = INK; c.lineWidth = s * .028;
+  c.beginPath();
+  c.moveTo(-r * .92, r * .32); c.lineTo(-r * .3, r * .48); c.moveTo(-r * .92, r * .72); c.lineTo(-r * .3, r * .66);
+  c.moveTo(r * .92, r * .32); c.lineTo(r * .3, r * .48); c.moveTo(r * .92, r * .72); c.lineTo(r * .3, r * .66);
+  c.stroke();
+},
+apple: function (c, s) {
+  var r = s * .30;
+  c.lineWidth = s * .04; c.strokeStyle = INK;
+  c.fillStyle = "#ff5a5a"; ell(c, 0, r * .18, r * .92, r * .82); c.fill(); c.stroke();
+  c.strokeStyle = "#8d5a2b"; c.lineWidth = s * .06;
+  c.beginPath(); c.moveTo(0, -r * .5); c.quadraticCurveTo(r * .04, -r * .9, r * .16, -r * 1.05); c.stroke();
+  c.fillStyle = "#66bb6a"; ell(c, r * .44, -r * .82, r * .34, r * .17, -.5); c.fill();
+  c.fillStyle = "rgba(255,255,255,.45)"; ell(c, -r * .35, r * .05, r * .16, r * .26, .5); c.fill();
+},
+star: function (c, s) {
+  var r = s * .35;
+  c.fillStyle = "#ffd93d"; c.strokeStyle = "#d99a1e"; c.lineWidth = s * .04;
+  c.beginPath();
+  for (var i = 0; i < 10; i++) {
+    var a = -Math.PI / 2 + i * Math.PI / 5, rad = i % 2 ? r * .46 : r;
+    var x = Math.cos(a) * rad, y = Math.sin(a) * rad;
+    if (i) c.lineTo(x, y); else c.moveTo(x, y);
+  }
+  c.closePath(); c.fill(); c.stroke();
+},
+moon: function (c, s) {
+  var r = s * .32;
+  c.fillStyle = "#ffe082"; c.strokeStyle = "#d9a441"; c.lineWidth = s * .045;
+  cc(c, 0, 0, r); c.fill(); c.stroke();
+  c.fillStyle = CARD_BG; cc(c, r * .46, -r * .2, r * .8); c.fill();
+  c.fillStyle = "#ffe082";
+  cc(c, r * .62, r * .42, s * .045); c.fill();
+  cc(c, r * .3, r * .72, s * .032); c.fill();
+},
+rainbow: function (c, s) {
+  var r = s * .34;
+  c.lineCap = "round";
+  var cols = ["#ff5a5a", "#ffd93d", "#4fc3f7"];
+  for (var i = 0; i < 3; i++) {
+    c.strokeStyle = cols[i]; c.lineWidth = s * .085;
+    c.beginPath(); c.arc(0, r * .5, r * (1.18 - .24 * i), Math.PI, 2 * Math.PI); c.stroke();
+  }
+  c.fillStyle = "#e8f4ff"; c.strokeStyle = "#a8c6e8"; c.lineWidth = s * .03;
+  cc(c, -r * 1.06, r * .5, r * .26); c.fill(); c.stroke();
+  cc(c, r * 1.06, r * .5, r * .26); c.fill(); c.stroke();
+},
+heart: function (c, s) {
+  var r = s * .30;
+  c.fillStyle = "#ff6b81"; c.strokeStyle = "#d94f68"; c.lineWidth = s * .045;
+  c.beginPath();
+  c.moveTo(0, r * .95);
+  c.bezierCurveTo(-r * 1.5, r * .1, -r * .95, -r * 1.05, 0, -r * .35);
+  c.bezierCurveTo(r * .95, -r * 1.05, r * 1.5, r * .1, 0, r * .95);
+  c.closePath(); c.fill(); c.stroke();
+  c.fillStyle = "rgba(255,255,255,.5)"; ell(c, -r * .42, -r * .3, r * .15, r * .24, .6); c.fill();
+},
+bolt: function (c, s) {
+  var r = s * .38;
+  c.fillStyle = "#ffe14d"; c.strokeStyle = "#e0a615"; c.lineWidth = s * .04; c.lineJoin = "round";
+  poly(c, [r * .3, -r, r * .68, -r * .22, r * .26, -r * .16, r * .52, r, -r * .52, -r * .06, -r * .12, -r * .12, -r * .34, -r]);
+  c.fill(); c.stroke();
+},
+flower: function (c, s) {
+  var r = s * .30;
+  c.strokeStyle = "#d96ab0"; c.lineWidth = s * .025; c.fillStyle = "#ff8fd8";
+  for (var i = 0; i < 6; i++) {
+    var a = i * Math.PI / 3;
+    ell(c, Math.cos(a) * r * .7, Math.sin(a) * r * .7, r * .44, r * .3, a); c.fill(); c.stroke();
+  }
+  c.fillStyle = "#ffd93d"; c.strokeStyle = "#d99a1e"; c.lineWidth = s * .03;
+  cc(c, 0, 0, r * .42); c.fill(); c.stroke();
+},
+mushroom: function (c, s) {
+  var r = s * .32;
+  c.lineWidth = s * .04; c.strokeStyle = INK;
+  c.fillStyle = "#fdf3e0"; rrect(c, -r * .34, r * .08, r * .68, r * .9, r * .22); c.fill(); c.stroke();
+  c.fillStyle = "#ff5a5a";
+  c.beginPath(); c.arc(0, r * .06, r * .95, Math.PI, 0); c.closePath(); c.fill(); c.stroke();
+  c.fillStyle = "#fff";
+  cc(c, -r * .44, -r * .3, r * .15); c.fill();
+  cc(c, r * .1, -r * .56, r * .11); c.fill();
+  cc(c, r * .52, -r * .2, r * .12); c.fill();
+},
+fish: function (c, s) {
+  var r = s * .34;
+  c.lineWidth = s * .04; c.strokeStyle = INK;
+  c.fillStyle = "#ff8f5a"; poly(c, [r * .5, 0, r * 1.05, -r * .48, r * 1.05, r * .48]); c.fill(); c.stroke();
+  c.fillStyle = "#4fc3f7"; ell(c, -r * .12, 0, r * .78, r * .5); c.fill(); c.stroke();
+  c.fillStyle = "#81d4fa"; poly(c, [-r * .3, -r * .4, r * .12, -r * .02, -r * .38, r * .08]); c.fill();
+  c.fillStyle = INK; cc(c, -r * .58, -r * .12, r * .09); c.fill();
+},
+butterfly: function (c, s) {
+  var r = s * .32;
+  c.lineWidth = s * .03; c.strokeStyle = INK;
+  c.fillStyle = "#b388ff";
+  ell(c, -r * .55, -r * .3, r * .5, r * .42, -.4); c.fill(); c.stroke();
+  ell(c, r * .55, -r * .3, r * .5, r * .42, .4); c.fill(); c.stroke();
+  c.fillStyle = "#8c9eff";
+  ell(c, -r * .45, r * .38, r * .38, r * .3, .4); c.fill(); c.stroke();
+  ell(c, r * .45, r * .38, r * .38, r * .3, -.4); c.fill(); c.stroke();
+  c.fillStyle = INK; rrect(c, -r * .07, -r * .48, r * .14, r, r * .07); c.fill();
+  c.lineWidth = s * .025;
+  c.beginPath();
+  c.moveTo(-r * .05, -r * .46); c.quadraticCurveTo(-r * .3, -r * .9, -r * .44, -r * .8);
+  c.moveTo(r * .05, -r * .46); c.quadraticCurveTo(r * .3, -r * .9, r * .44, -r * .8);
+  c.stroke();
+},
+tree: function (c, s) {
+  var r = s * .34;
+  c.lineWidth = s * .04; c.strokeStyle = INK;
+  c.fillStyle = "#8d5a2b"; rrect(c, -r * .14, r * .1, r * .28, r * .9, r * .08); c.fill(); c.stroke();
+  c.fillStyle = "#4caf50"; cc(c, 0, -r * .3, r * .72); c.fill(); c.stroke();
+  c.fillStyle = "#66bb6a"; cc(c, -r * .3, -r * .55, r * .3); c.fill(); cc(c, r * .3, -r * .48, r * .26); c.fill();
+},
+house: function (c, s) {
+  var r = s * .34;
+  c.lineWidth = s * .04; c.strokeStyle = INK;
+  c.fillStyle = "#ffcc80"; rrect(c, -r * .72, -r * .08, r * 1.44, r * 1.08, r * .08); c.fill(); c.stroke();
+  c.fillStyle = "#ff7043"; poly(c, [-r * .95, -r * .08, 0, -r * .95, r * .95, -r * .08]); c.fill(); c.stroke();
+  c.fillStyle = "#8d5a2b"; rrect(c, -r * .2, r * .38, r * .4, r * .62, r * .06); c.fill(); c.stroke();
+  c.fillStyle = "#4fc3f7"; rrect(c, r * .26, r * .08, r * .34, r * .34, r * .05); c.fill(); c.stroke();
+  rrect(c, -r * .6, r * .08, r * .34, r * .34, r * .05); c.fill(); c.stroke();
+},
+car: function (c, s) {
+  var r = s * .36;
+  c.lineWidth = s * .04; c.strokeStyle = INK;
+  c.fillStyle = "#ef5350"; rrect(c, -r, -r * .12, r * 2, r * .62, r * .18); c.fill(); c.stroke();
+  c.fillStyle = "#ef5350"; rrect(c, -r * .52, -r * .58, r * 1.04, r * .55, r * .12); c.fill(); c.stroke();
+  c.fillStyle = "#b3e5fc";
+  rrect(c, -r * .4, -r * .46, r * .38, r * .34, r * .06); c.fill();
+  rrect(c, r * .04, -r * .46, r * .38, r * .34, r * .06); c.fill();
+  c.fillStyle = INK; cc(c, -r * .55, r * .5, r * .22); c.fill(); cc(c, r * .55, r * .5, r * .22); c.fill();
+  c.fillStyle = "#fff"; cc(c, -r * .55, r * .5, r * .09); c.fill(); cc(c, r * .55, r * .5, r * .09); c.fill();
+},
+ball: function (c, s) {
+  var r = s * .34;
+  c.lineWidth = s * .035; c.strokeStyle = INK;
+  cc(c, 0, 0, r); c.fillStyle = "#fff"; c.fill();
+  c.save(); cc(c, 0, 0, r); c.clip();
+  c.fillStyle = "#ff5a5a"; ell(c, 0, 0, r * .75, r, 0); c.fill();
+  c.fillStyle = "#fff"; ell(c, 0, 0, r * .48, r, 0); c.fill();
+  c.fillStyle = "#4fc3f7"; ell(c, 0, 0, r * .2, r, 0); c.fill();
+  c.restore();
+  cc(c, 0, 0, r); c.stroke();
+},
+cloud: function (c, s) {
+  var r = s * .30;
+  var cs = [[-r * .55, r * .18, r * .5], [0, -r * .12, r * .6], [r * .58, r * .18, r * .48], [0, r * .3, r * .72]];
+  c.fillStyle = "#8fb8d8";
+  for (var i = 0; i < cs.length; i++) { cc(c, cs[i][0], cs[i][1], cs[i][2] + s * .028); c.fill(); }
+  c.fillStyle = "#e8f4ff";
+  for (var j = 0; j < cs.length; j++) { cc(c, cs[j][0], cs[j][1], cs[j][2]); c.fill(); }
+},
+key: function (c, s) {
+  var r = s * .34;
+  c.fillStyle = "#ffd54f"; c.strokeStyle = "#d9a441"; c.lineWidth = s * .035;
+  cc(c, -r * .45, 0, r * .5); c.fill();
+  c.fillStyle = CARD_BG; cc(c, -r * .45, 0, r * .22); c.fill();
+  cc(c, -r * .45, 0, r * .5); c.stroke();
+  c.fillStyle = "#ffd54f"; rrect(c, -r * .12, -r * .1, r * 1.5, r * .2, r * .08); c.fill(); c.stroke();
+  rrect(c, r * .82, r * .02, r * .13, r * .34, r * .04); c.fill(); c.stroke();
+  rrect(c, r * 1.1, r * .02, r * .13, r * .46, r * .04); c.fill(); c.stroke();
+},
+clock: function (c, s) {
+  var r = s * .34;
+  c.fillStyle = "#e3f2fd"; c.strokeStyle = INK; c.lineWidth = s * .045;
+  cc(c, 0, 0, r); c.fill(); c.stroke();
+  c.fillStyle = "#5c6bc0";
+  cc(c, 0, -r * .68, r * .06); c.fill(); cc(c, 0, r * .68, r * .06); c.fill();
+  cc(c, -r * .68, 0, r * .06); c.fill(); cc(c, r * .68, 0, r * .06); c.fill();
+  c.strokeStyle = INK; c.lineWidth = s * .05; c.lineCap = "round";
+  c.beginPath(); c.moveTo(0, 0); c.lineTo(0, -r * .42); c.moveTo(0, 0); c.lineTo(r * .34, r * .18); c.stroke();
+  c.fillStyle = "#5c6bc0"; cc(c, 0, 0, r * .08); c.fill();
+},
+cup: function (c, s) {
+  var r = s * .32;
+  c.lineWidth = s * .04; c.strokeStyle = INK;
+  c.fillStyle = "#b0bec5"; c.lineWidth = s * .035;
+  c.beginPath();
+  c.moveTo(-r * .22, -r * .75); c.quadraticCurveTo(-r * .38, -r * .95, -r * .2, -r * 1.12);
+  c.moveTo(r * .16, -r * .75); c.quadraticCurveTo(0, -r * .95, r * .18, -r * 1.12);
+  c.stroke();
+  c.fillStyle = "#4db6ac"; c.strokeStyle = INK; c.lineWidth = s * .04;
+  c.beginPath();
+  c.arc(r * .58, r * .12, r * .42, -1.5708, 1.5708);
+  c.arc(r * .58, r * .12, r * .17, 1.5708, -1.5708, true);
+  c.closePath(); c.fill(); c.stroke();
+  rrect(c, -r * .62, -r * .48, r * 1.1, r * 1.3, r * .18); c.fill(); c.stroke();
+  c.fillStyle = "rgba(255,255,255,.35)"; rrect(c, -r * .46, -r * .3, r * .16, r * .9, r * .08); c.fill();
+},
+book: function (c, s) {
+  var r = s * .34;
+  c.lineWidth = s * .045; c.strokeStyle = INK;
+  c.fillStyle = "#7986cb";
+  poly(c, [0, -r * .5, -r * .98, -r * .72, -r * .98, r * .62, 0, r * .84, r * .98, r * .62, r * .98, -r * .72, 0, -r * .5]);
+  c.fill(); c.stroke();
+  c.fillStyle = "#fff";
+  poly(c, [0, -r * .36, -r * .8, -r * .55, -r * .8, r * .48, 0, r * .68]); c.fill();
+  poly(c, [0, -r * .36, r * .8, -r * .55, r * .8, r * .48, 0, r * .68]); c.fill();
+  c.strokeStyle = "#a5b1e8"; c.lineWidth = s * .022;
+  c.beginPath();
+  c.moveTo(-r * .62, -r * .28); c.lineTo(-r * .18, -r * .18); c.moveTo(-r * .62, r * .05); c.lineTo(-r * .18, r * .13);
+  c.moveTo(r * .62, -r * .28); c.lineTo(r * .18, -r * .18); c.moveTo(r * .62, r * .05); c.lineTo(r * .18, r * .13);
+  c.stroke();
+  c.strokeStyle = INK; c.lineWidth = s * .03;
+  c.beginPath(); c.moveTo(0, -r * .36); c.lineTo(0, r * .68); c.stroke();
+},
+note: function (c, s) {
+  var r = s * .34;
+  c.fillStyle = "#f06292"; c.strokeStyle = "#c2185b"; c.lineWidth = s * .03;
+  c.beginPath();
+  c.moveTo(-r * .1, -r * .68);
+  c.quadraticCurveTo(r * .62, -r * .5, r * .45, r * .1);
+  c.quadraticCurveTo(r * .42, -r * .28, -r * .1, -r * .42);
+  c.closePath(); c.fill(); c.stroke();
+  c.strokeStyle = "#c2185b"; c.lineWidth = s * .08; c.lineCap = "round";
+  c.beginPath(); c.moveTo(-r * .1, -r * .55); c.lineTo(-r * .1, r * .52); c.stroke();
+  c.fillStyle = "#f06292"; ell(c, -r * .36, r * .58, r * .3, r * .22, -.3); c.fill();
+  c.strokeStyle = "#c2185b"; c.lineWidth = s * .025; ell(c, -r * .36, r * .58, r * .3, r * .22, -.3); c.stroke();
+},
+gem: function (c, s) {
+  var r = s * .36;
+  c.fillStyle = "#4dd0e1"; c.strokeStyle = "#00838f"; c.lineWidth = s * .04; c.lineJoin = "round";
+  poly(c, [-r * .62, -r * .38, r * .62, -r * .38, r, -r * .02, 0, r, -r, -r * .02]);
+  c.fill(); c.stroke();
+  c.fillStyle = "#b2ebf2";
+  poly(c, [-r * .62, -r * .38, r * .62, -r * .38, r * .45, -r * .02, -r * .45, -r * .02]);
+  c.fill();
+  c.strokeStyle = "#00838f"; c.lineWidth = s * .025;
+  c.beginPath();
+  c.moveTo(-r * .45, -r * .02); c.lineTo(r * .45, -r * .02);
+  c.moveTo(-r * .45, -r * .02); c.lineTo(0, r); c.moveTo(r * .45, -r * .02); c.lineTo(0, r);
+  c.stroke();
+},
+sun: function (c, s) {
+  var r = s * .32;
+  c.fillStyle = "#ffca28"; c.strokeStyle = "#e08a00"; c.lineWidth = s * .03;
+  for (var i = 0; i < 8; i++) {
+    var a = i * Math.PI / 4;
+    poly(c, [Math.cos(a - .17) * r * .92, Math.sin(a - .17) * r * .92, Math.cos(a + .17) * r * .92, Math.sin(a + .17) * r * .92, Math.cos(a) * r * 1.5, Math.sin(a) * r * 1.5]);
+    c.fill(); c.stroke();
+  }
+  c.fillStyle = "#ffca28"; c.strokeStyle = "#e08a00"; c.lineWidth = s * .04;
+  cc(c, 0, 0, r * .85); c.fill(); c.stroke();
+  c.fillStyle = "#e08a00";
+  cc(c, -r * .28, -r * .12, r * .09); c.fill(); cc(c, r * .28, -r * .12, r * .09); c.fill();
+  c.strokeStyle = "#e08a00"; c.lineWidth = s * .035; c.lineCap = "round";
+  c.beginPath(); c.arc(0, r * .1, r * .3, .35, Math.PI - .35); c.stroke();
+},
+snowman: function (c, s) {
+  var r = s * .34;
+  c.lineWidth = s * .035; c.strokeStyle = "#90a4ae";
+  c.fillStyle = "#fff";
+  cc(c, 0, r * .48, r * .55); c.fill(); c.stroke();
+  cc(c, 0, -r * .32, r * .42); c.fill(); c.stroke();
+  c.strokeStyle = "#8d5a2b"; c.lineWidth = s * .03;
+  c.beginPath();
+  c.moveTo(-r * .45, r * .28); c.lineTo(-r * .85, r * .08); c.moveTo(r * .45, r * .28); c.lineTo(r * .85, r * .08);
+  c.stroke();
+  c.fillStyle = "#37474f";
+  rrect(c, -r * .3, -r * .98, r * .6, r * .32, r * .05); c.fill();
+  rrect(c, -r * .44, -r * .7, r * .88, r * .09, r * .04); c.fill();
+  c.fillStyle = INK;
+  cc(c, -r * .14, -r * .36, r * .05); c.fill(); cc(c, r * .14, -r * .36, r * .05); c.fill();
+  cc(c, 0, r * .34, r * .05); c.fill(); cc(c, 0, r * .56, r * .05); c.fill();
+  c.fillStyle = "#ff7043"; poly(c, [0, -r * .28, r * .26, -r * .22, 0, -r * .17]); c.fill();
+}
+};
+/*__MP_ICONS_END__*/
+
+// ---------- DOM 与全局状态 ----------
+var canvas = document.getElementById("game");
+var ctx = canvas.getContext("2d");
+var dpr = Math.min(window.devicePixelRatio || 1, 2);
+function el(id) { return document.getElementById(id); }
+var timeEl = el("tTime"), movesEl = el("tMoves"), pairsEl = el("tPairs"), scoreEl = el("tScore");
+var overlay = el("overlay"), menuView = el("menuView"), winView = el("winView");
+
+var state = "MENU";        // MENU | PLAY | WON
+var prevState = "MENU";
+var curDiff = "easy";
+var cols = 4, rows = 4, pairs = 8;
+var cell = 80, gap = 7, boardW = 320, boardH = 320;
+var st = null;             // MP_newState 的实例
+var cards = [];            // 表现层动画：{p, target, glow, appear}
+var particles = [];
+var floats = [];
+var waveT = 0;             // 胜利波浪时钟
+var timerStart = 0;        // performance.now 毫秒（首次翻牌时记录）
+var winElapsed = 0;
+var muted = false;
+try { muted = localStorage.getItem("mp_muted") === "1"; } catch (e) {}
+
+// ---------- 平台埋点（SDK 已做域名守卫，其他域为空操作） ----------
+function portalStart() {
+  try {
+    if (window.__portal === "crazygames" && window.CrazyGames && window.CrazyGames.SDK) {
+      window.CrazyGames.SDK.game.gameplayStart();
+    }
+  } catch (e) {}
+}
+function portalStop(happy) {
+  try {
+    if (window.__portal === "crazygames" && window.CrazyGames && window.CrazyGames.SDK) {
+      window.CrazyGames.SDK.game.gameplayStop();
+      if (happy) window.CrazyGames.SDK.game.happytime();
+    }
+  } catch (e) {}
+}
+
+// ---------- 音效（WebAudio 合成，静音开关） ----------
+var actx = null;
+function ensureAudio() {
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === "suspended") actx.resume();
+  } catch (e) {}
+}
+function beep(freq, dur, type, gainv, delay) {
+  if (muted) return;
+  try {
+    ensureAudio();
+    if (!actx) return;
+    var t0 = actx.currentTime + (delay || 0);
+    var o = actx.createOscillator(), g = actx.createGain();
+    o.type = type || "sine"; o.frequency.value = freq;
+    g.gain.setValueAtTime(gainv || 0.1, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(t0); o.stop(t0 + dur);
+  } catch (e) {}
+}
+function sndFlip() { beep(520 + Math.random() * 40, 0.05, "sine", 0.06); }
+function sndMiss() { beep(220, 0.12, "square", 0.05); beep(170, 0.16, "square", 0.045, 0.1); }
+function sndMatch(cb) {
+  var base = 430 * Math.pow(1.09, Math.min(cb - 1, 10));
+  beep(base, 0.09, "triangle", 0.1);
+  beep(base * 1.5, 0.16, "triangle", 0.09, 0.08);
+}
+function sndWin() { [523, 659, 784, 1047, 1319].forEach(function (f, i) { beep(f, 0.22, "triangle", 0.11, i * 0.13); }); }
+function sndClick() { beep(760, 0.04, "sine", 0.05); }
+
+// ---------- 最佳成绩（分档 localStorage，全部 try/catch） ----------
+function bestKey(d) { return "mp_best_" + d; }
+function loadBest(d) {
+  try {
+    var v = JSON.parse(localStorage.getItem(bestKey(d)));
+    if (v && typeof v.moves === "number" && typeof v.time === "number") return v;
+  } catch (e) {}
+  return null;
+}
+function saveBest(d, b) { try { localStorage.setItem(bestKey(d), JSON.stringify(b)); } catch (e) {} }
+function bestLabel(d) {
+  var b = loadBest(d);
+  return b ? "Best: " + b.moves + " moves \u00b7 " + MP_fmtTime(b.time) : "Not played yet";
+}
+
+// ---------- 布局与卡背预渲染 ----------
+var backCv = document.createElement("canvas");
+function resize() {
+  var maxW = Math.min(window.innerWidth - 16, 640);
+  var hudH = (el("hud") ? el("hud").offsetHeight : 60) + (el("toolbar") ? el("toolbar").offsetHeight : 32);
+  var footH = el("footer") ? el("footer").offsetHeight : 22;
+  var maxH = window.innerHeight - hudH - footH - 22;
+  if (maxH < 160) maxH = 160;
+  cell = Math.floor(Math.min((maxW - (cols - 1) * gap) / cols, (maxH - (rows - 1) * gap) / rows));
+  if (cell > 120) cell = 120;
+  if (cell < 22) cell = 22;
+  boardW = cols * cell + (cols - 1) * gap;
+  boardH = rows * cell + (rows - 1) * gap;
+  canvas.width = Math.round(boardW * dpr);
+  canvas.height = Math.round(boardH * dpr);
+  canvas.style.width = boardW + "px";
+  canvas.style.height = boardH + "px";
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  renderBack();
+}
+function renderBack() {  // 霓虹卡背：预渲染离屏画布
+  backCv.width = Math.max(2, Math.round(cell * dpr));
+  backCv.height = backCv.width;
+  var b = backCv.getContext("2d");
+  b.setTransform(dpr, 0, 0, dpr, 0, 0);
+  var w = backCv.width / dpr, r = w * 0.16;
+  var g = b.createLinearGradient(0, 0, w, w);
+  g.addColorStop(0, "#2b3070"); g.addColorStop(1, "#181c4a");
+  b.fillStyle = g; rrect(b, 0.5, 0.5, w - 1, w - 1, r); b.fill();
+  b.save(); rrect(b, 0.5, 0.5, w - 1, w - 1, r); b.clip();
+  b.lineWidth = 1;
+  b.strokeStyle = "rgba(124,231,216,0.13)";
+  var step = w / 4.5;
+  for (var x = -w; x < w * 2; x += step) { b.beginPath(); b.moveTo(x, 0); b.lineTo(x + w, w); b.stroke(); }
+  b.strokeStyle = "rgba(155,124,255,0.12)";
+  for (var x2 = -w; x2 < w * 2; x2 += step) { b.beginPath(); b.moveTo(x2, w); b.lineTo(x2 + w, 0); b.stroke(); }
+  b.strokeStyle = "rgba(124,231,216,0.55)"; b.lineWidth = Math.max(1.2, w * 0.02);
+  b.shadowColor = "rgba(124,231,216,0.8)"; b.shadowBlur = w * 0.08;
+  b.beginPath();
+  b.moveTo(w / 2, w * 0.26); b.lineTo(w * 0.74, w / 2); b.lineTo(w / 2, w * 0.74); b.lineTo(w * 0.26, w / 2);
+  b.closePath(); b.stroke();
+  b.strokeStyle = "rgba(255,125,216,0.4)"; b.shadowColor = "rgba(255,125,216,0.6)";
+  b.beginPath();
+  b.moveTo(w / 2, w * 0.38); b.lineTo(w * 0.62, w / 2); b.lineTo(w / 2, w * 0.62); b.lineTo(w * 0.38, w / 2);
+  b.closePath(); b.stroke();
+  b.restore();
+  b.shadowBlur = 0;
+  b.strokeStyle = "rgba(255,255,255,0.1)"; b.lineWidth = 1;
+  rrect(b, 0.5, 0.5, w - 1, w - 1, r); b.stroke();
+}
+
+// ---------- 特效 ----------
+function cardCenter(i) {
+  var col = i % cols, row = Math.floor(i / cols);
+  return { x: col * (cell + gap) + cell / 2, y: row * (cell + gap) + cell / 2 };
+}
+function burst(i) {
+  var p = cardCenter(i);
+  var cols3 = ["#ffd76a", "#7ce7d8", "#ff8fd8"];
+  for (var k = 0; k < 12; k++) {
+    var a = Math.random() * 6.2832, sp = 60 + Math.random() * 140;
+    particles.push({ x: p.x, y: p.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 30, life: 0.5 + Math.random() * 0.3, color: cols3[k % 3], size: 2 + Math.random() * 3, grav: 260 });
+  }
+}
+function spawnConfetti() {
+  var cols5 = ["#ff6b81", "#ffd93d", "#7ce7d8", "#9b7cff", "#4fc3f7", "#66bb6a"];
+  for (var k = 0; k < 80; k++) {
+    particles.push({ x: Math.random() * boardW, y: -12 - Math.random() * boardH * 0.6, vx: (Math.random() - 0.5) * 50, vy: 70 + Math.random() * 110, life: 2.6 + Math.random(), color: cols5[k % 6], size: 3 + Math.random() * 4, grav: 20 });
+  }
+}
+function floatText(x, y, txt, color) { floats.push({ x: x, y: y, t: txt, life: 1, color: color || "#ffd76a" }); }
+
+// ---------- 计时 ----------
+function elapsed() {
+  if (!timerStart) return 0;
+  return (performance.now() - timerStart) / 1000;
+}
+
+// ---------- 一局流程 ----------
+function startGame(diff) {
+  curDiff = diff;
+  var d = MP_DIFFS[diff];
+  cols = d.cols; rows = d.rows;
+  if (diff === "hard" && window.innerHeight > window.innerWidth) { cols = d.rows; rows = d.cols; }  // 竖屏 hard 用 6×8
+  pairs = d.pairs;
+  st = MP_newState(pairs);
+  cards = st.deck.map(function (_, i) { return { p: 0, target: 0, glow: 0, appear: -0.03 * i }; });
+  particles = []; floats = [];
+  waveT = 0; timerStart = 0; winElapsed = 0;
+  state = "PLAY";
+  timeEl.textContent = "0:00";
+  movesEl.textContent = "0";
+  pairsEl.textContent = "0/" + pairs;
+  scoreEl.textContent = "0";
+  overlay.style.display = "none";
+  resize();
+  portalStart();
+  sndClick();
+}
+function showMenu() {
+  if (state === "PLAY") portalStop(false);  // 中途退出
+  state = "MENU";
+  menuView.style.display = "block";
+  winView.style.display = "none";
+  el("best_easy").textContent = bestLabel("easy");
+  el("best_normal").textContent = bestLabel("normal");
+  el("best_hard").textContent = bestLabel("hard");
+  overlay.style.display = "flex";
+}
+function showWinPanel() {
+  var score = MP_finalScore(st.raw, st.moves, st.pairs);
+  var par = MP_par(st.pairs);
+  el("wScore").textContent = score;
+  el("wMoves").textContent = st.moves;
+  el("wTime").textContent = MP_fmtTime(winElapsed);
+  el("wPar").textContent = par;
+  var chips = "";
+  if (st.moves < par) chips += '<span class="chip gold">SPEED BONUS \u00d71.5</span>';
+  if (newBestMoves) chips += '<span class="chip">NEW BEST MOVES</span>';
+  if (newBestTime) chips += '<span class="chip">NEW BEST TIME</span>';
+  el("wChips").innerHTML = chips;
+  menuView.style.display = "none";
+  winView.style.display = "block";
+  overlay.style.display = "flex";
+}
+var newBestMoves = false, newBestTime = false;
+function onWin() {
+  state = "WON";
+  winElapsed = elapsed();
+  var b = loadBest(curDiff);
+  newBestMoves = false; newBestTime = false;
+  if (!b) { b = { moves: st.moves, time: winElapsed }; newBestMoves = true; newBestTime = true; }
+  else {
+    if (st.moves < b.moves) { b.moves = st.moves; newBestMoves = true; }
+    if (winElapsed < b.time) { b.time = winElapsed; newBestTime = true; }
+  }
+  saveBest(curDiff, b);
+  spawnConfetti();
+  sndWin();
+  portalStop(true);
+  setTimeout(function () { if (state === "WON") showWinPanel(); }, 1500);
+}
+
+// ---------- 点击判定（状态机 + 表现层接线） ----------
+function tapCard(i) {
+  if (state !== "PLAY" || !st) return;
+  var ev = MP_flip(st, i);
+  if (!ev.ok) return;
+  if (ev.event === "flip") {
+    if (!timerStart) timerStart = performance.now();  // 首次翻牌开始计时
+    cards[i].target = 1;
+    sndFlip();
+  } else if (ev.event === "miss") {
+    cards[ev.cards[0]].target = 1;
+    cards[ev.cards[1]].target = 1;
+    movesEl.textContent = st.moves;
+    sndMiss();
+    var pend = st.pending, a = ev.cards[0], b = ev.cards[1];
+    setTimeout(function () {  // 0.8s 后盖回
+      if (!st || st.pending !== pend) return;
+      MP_resolve(st);
+      cards[a].target = 0;
+      cards[b].target = 0;
+    }, 800);
+  } else if (ev.event === "match") {
+    movesEl.textContent = st.moves;
+    pairsEl.textContent = st.pairsFound + "/" + pairs;
+    scoreEl.textContent = st.raw;
+    cards[ev.cards[0]].glow = 1;
+    cards[ev.cards[1]].glow = 1;
+    burst(ev.cards[0]); burst(ev.cards[1]);
+    var c0 = cardCenter(ev.cards[0]);
+    floatText(c0.x, c0.y - cell * 0.55, "+" + ev.gain, "#ffd76a");
+    if (ev.combo >= 2) floatText(c0.x, c0.y - cell * 0.9, "COMBO \u00d7" + ev.combo, "#7ce7d8");
+    sndMatch(ev.combo);
+    var pend2 = st.pending;
+    setTimeout(function () {  // 庆祝 0.48s 后解锁
+      if (!st || st.pending !== pend2) return;
+      MP_resolve(st);
+    }, 480);
+    if (ev.won) onWin();
+  }
+}
+function pickAt(x, y) {
+  var col = Math.floor(x / (cell + gap));
+  var row = Math.floor(y / (cell + gap));
+  if (col < 0 || col >= cols || row < 0 || row >= rows) return;
+  if (x - col * (cell + gap) > cell || y - row * (cell + gap) > cell) return;  // 点在缝隙上
+  tapCard(row * cols + col);
+}
+
+// ---------- 渲染 ----------
+function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+function drawCard(i) {
+  var cd = cards[i];
+  if (cd.appear <= 0) return;
+  var col = i % cols, row = Math.floor(i / cols);
+  var x = col * (cell + gap), y = row * (cell + gap);
+  var wob = state === "WON" ? Math.sin(waveT * 5 - (col + row) * 0.55) * cell * 0.08 : 0;
+  var ap = Math.min(1, cd.appear);
+  var scl = 0.55 + 0.45 * easeOut(ap);
+  var pw = Math.abs(Math.cos(cd.p * Math.PI));
+  var cx = x + cell / 2, cy = y + cell / 2 + wob;
+  var w2 = cell * scl * pw, h2 = cell * scl;
+  if (w2 < 1.5) return;
+  ctx.save();
+  if (cd.glow > 0) {
+    ctx.shadowColor = "rgba(255,215,106," + (0.9 * cd.glow).toFixed(3) + ")";
+    ctx.shadowBlur = cell * 0.32 * cd.glow;
+  }
+  if (cd.p < 0.5) {
+    ctx.drawImage(backCv, cx - w2 / 2, cy - h2 / 2, w2, h2);
+  } else {
+    rrect(ctx, cx - w2 / 2, cy - h2 / 2, w2, h2, w2 * 0.16);
+    ctx.fillStyle = CARD_BG; ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = "#e2d3b4"; ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.translate(cx, cy);
+    MP_DRAW[st.deck[i]](ctx, w2 * 0.62);
+  }
+  ctx.restore();
+}
+function render() {
+  ctx.clearRect(0, 0, boardW, boardH);
+  var bg = ctx.createLinearGradient(0, 0, 0, boardH);
+  bg.addColorStop(0, "#141838"); bg.addColorStop(1, "#0e1129");
+  ctx.fillStyle = bg; rrect(ctx, 0, 0, boardW, boardH, 14); ctx.fill();
+  if (st) for (var i = 0; i < cards.length; i++) drawCard(i);
+  for (var p = 0; p < particles.length; p++) {
+    var pt = particles[p];
+    ctx.globalAlpha = Math.max(0, Math.min(1, pt.life));
+    ctx.fillStyle = pt.color;
+    ctx.fillRect(pt.x - pt.size / 2, pt.y - pt.size / 2, pt.size, pt.size);
+  }
+  ctx.globalAlpha = 1;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  for (var f = 0; f < floats.length; f++) {
+    var fl = floats[f];
+    ctx.globalAlpha = Math.max(0, Math.min(1, fl.life));
+    ctx.fillStyle = fl.color;
+    ctx.font = "800 " + Math.max(12, Math.round(cell * 0.22)) + "px sans-serif";
+    ctx.fillText(fl.t, fl.x, fl.y);
+  }
+  ctx.globalAlpha = 1;
+}
+var last = 0;
+function frame(t) {
+  var dt = Math.min((t - last) / 1000, 0.05); last = t;
+  for (var i = 0; i < cards.length; i++) {
+    var cd = cards[i];
+    cd.appear += dt * 3;
+    if (cd.appear > 1.2) cd.appear = 1.2;
+    if (cd.p !== cd.target) {
+      var dir = cd.target > cd.p ? 1 : -1;
+      cd.p += dir * dt * 5;
+      if ((dir > 0 && cd.p > cd.target) || (dir < 0 && cd.p < cd.target)) cd.p = cd.target;
+    }
+    if (cd.glow > 0) cd.glow = Math.max(0, cd.glow - dt * 1.2);
+  }
+  for (var p = particles.length - 1; p >= 0; p--) {
+    var pt = particles[p];
+    pt.life -= dt;
+    if (pt.life <= 0) { particles.splice(p, 1); continue; }
+    pt.x += pt.vx * dt; pt.y += pt.vy * dt; pt.vy += (pt.grav || 0) * dt;
+  }
+  for (var f = floats.length - 1; f >= 0; f--) {
+    var fl = floats[f];
+    fl.life -= dt * 1.1; fl.y -= 34 * dt;
+    if (fl.life <= 0) floats.splice(f, 1);
+  }
+  if (state === "WON") waveT += dt;
+  if (state === "PLAY" && st && st.started && !st.won) timeEl.textContent = MP_fmtTime(elapsed());
+  render();
+  requestAnimationFrame(frame);
+}
+
+// ---------- 输入（触控 + 鼠标 + 键盘） ----------
+function evPos(clientX, clientY) {
+  var rect = canvas.getBoundingClientRect();
+  return { x: (clientX - rect.left) / rect.width * boardW, y: (clientY - rect.top) / rect.height * boardH };
+}
+canvas.addEventListener("mousedown", function (e) { ensureAudio(); var p = evPos(e.clientX, e.clientY); pickAt(p.x, p.y); });
+canvas.addEventListener("touchstart", function (e) {
+  e.preventDefault();
+  ensureAudio();
+  var t = e.changedTouches[0];
+  var p = evPos(t.clientX, t.clientY);
+  pickAt(p.x, p.y);
+}, { passive: false });
+document.addEventListener("keydown", function (e) {
+  if (state === "MENU") {
+    if (e.key === "1") startGame("easy");
+    else if (e.key === "2") startGame("normal");
+    else if (e.key === "3") startGame("hard");
+    else if (e.key === "Enter" || e.key === " ") startGame(curDiff);
+  } else if (state === "WON" && overlay.style.display !== "none") {
+    if (e.key === "Enter" || e.key === " ") startGame(curDiff);
+  }
+  if (e.key === "Escape" && state !== "MENU") showMenu();
+});
+el("menuBtn").addEventListener("click", function () { sndClick(); showMenu(); });
+el("muteBtn").addEventListener("click", function () {
+  muted = !muted;
+  try { localStorage.setItem("mp_muted", muted ? "1" : "0"); } catch (e) {}
+  el("muteBtn").textContent = muted ? "SOUND OFF" : "SOUND ON";
+  if (!muted) sndClick();
+});
+Array.prototype.forEach.call(document.querySelectorAll(".diff"), function (btn) {
+  btn.addEventListener("click", function () { startGame(btn.getAttribute("data-diff")); });
+});
+el("againBtn").addEventListener("click", function () { startGame(curDiff); });
+el("toMenuBtn").addEventListener("click", function () { sndClick(); menuView.style.display = "block"; winView.style.display = "none"; showMenu(); });
+window.addEventListener("resize", function () { resize(); });
+
+// ---------- 启动 ----------
+el("muteBtn").textContent = muted ? "SOUND OFF" : "SOUND ON";
+resize();
+showMenu();
+requestAnimationFrame(frame);
+// 调试/测试钩子（不影响游戏逻辑）
+window.__mp = {
+  get state() { return state; },
+  get st() { return st; },
+  get cards() { return cards; },
+  get cols() { return cols; },
+  get rows() { return rows; },
+  startGame: startGame,
+  showMenu: showMenu,
+  core: {
+    icons: MP_ICONS, diffs: MP_DIFFS,
+    shuffle: MP_shuffle, buildDeck: MP_buildDeck,
+    newState: MP_newState, flip: MP_flip, resolve: MP_resolve,
+    par: MP_par, matchGain: MP_matchGain, finalScore: MP_finalScore, fmtTime: MP_fmtTime
+  }
+};
+</script>
+</body>
+</html>
